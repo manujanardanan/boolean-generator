@@ -19,33 +19,39 @@ def load_text(upload):
 
 # ───────────────────────── prompt builder ─────────────────────────────────────
 def build_prompt(jd, not_filters, user_ctx=""):
-    instr = (
+    """
+    Build a system prompt that…
+    1. Uses user_ctx as the ONLY source of MUST-HAVE skills.
+    2. Lets the JD supply synonyms/examples, but never introduce new buckets.
+    3. Forces “resume language” synonyms (e.g., GL, cost-center for Finance Master Data).
+    """
+    instructions = (
         "You are an HR sourcing assistant.\n"
-        "1. Extract 4–6 *key skill buckets* from the job description.\n"
-        "2. List 3–6 common synonyms/phrases for each bucket.\n"
-        "3. IF USER CONTEXT is provided, treat it as a **hard filter**:\n"
-        "   • Keep ONLY buckets aligned with that context.\n"
-        "   • Discard JD skills that are not aligned.\n"
-        "4. Build a Boolean search string: OR within a bucket, AND between buckets.\n"
-        "5. Append NOT-filters.\n"
-        "Return Markdown with two sections:\n"
-        "### Buckets\n* Bucket – [syn1, syn2]\n### Boolean\n<string>\n"
+        "● Step-A  (Prioritize)\n"
+        "  Read the USER CONTEXT below and extract 3-5 MUST-HAVE skill buckets—nothing else.\n"
+        "● Step-B  (Resume Language)\n"
+        "  For each bucket, list 5-10 ways that skill is **likely written on real resumes** "
+        "(abbreviations, module names, domain jargon, project phrases). "
+        "Ignore buzz-words copied verbatim from the JD if they’re seldom on resumes.\n"
+        "● Step-C  (Boolean)\n"
+        "  Build a Boolean search string:\n"
+        "    • OR within a bucket (use resume-style synonyms).\n"
+        "    • AND between buckets.\n"
+        "    • Append the NOT-filters.\n"
+        "● Output Markdown in exactly this template:\n"
+        "### Buckets\n"
+        "* <Bucket-1> – [syn1, syn2, …]\n"
+        "* <Bucket-2> – […]\n"
+        "### Boolean\n"
+        "<boolean string>\n"
     )
+
     if user_ctx:
-        instr += f"\nUSER CONTEXT (strict): {user_ctx}\n"
+        instructions += f"\nUSER CONTEXT (must-haves, strict):\n{user_ctx}\n"
+    instructions += f"\nNOT filters: {not_filters}\n"
+    instructions += f"\n---\nJob Description (only for extra synonyms, NOT for new buckets):\n{jd}"
 
-    instr += f"\nNOT filters: {not_filters}\n\nJOB DESCRIPTION:\n{jd}"
-    return instr
-
-def gen_boolean(jd, not_filters, user_ctx=""):
-    prompt = build_prompt(jd, not_filters, user_ctx)
-    resp = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.4
-    )
-    return resp.choices[0].message.content
-
+    return instructions
 # ────────────────────────────── UI ────────────────────────────────────────────
 st.subheader("Step 1 • Job Description")
 jd_file = st.file_uploader("Upload JD (TXT / PDF / DOCX)", type=["txt", "pdf", "docx"])
